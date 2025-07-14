@@ -56,11 +56,11 @@ class Parser:
                 instead another will be applyed right after.
 
         ### Tags as text:
-            If you want to preserve specific tag, place `\` right before
+            If you want to preserve specific tag, place `\\` right before
             the tag.
             
             #### Example:
-                `\<bold>\</bold>` - wont register as a tag and `\` will be removed
+                `\\<bold>\\</bold>` - wont register as a tag and `\\` will be removed
         """
         tokens = lexer(text)
 
@@ -91,29 +91,6 @@ class Parser:
         """
         amount, _ = cleanTextLen(text)
         return amount
-
-
-class Stack:
-    def __init__( self ) -> None:
-        self.stack = []
-
-    def top( self ) -> Any:
-        return self.stack[-1]
-
-    def empty( self ) -> bool:
-        return len(self.stack) == 0
-
-    def pop( self ) -> Any:
-        return self.stack.pop()
-
-    def push( self, value: Any ) -> NoReturn:
-        self.stack.append(value)
-
-    def __len__( self ) -> int:
-        return len(self.stack)
-    
-    def __str__( self ) -> str:
-        return str(self.stack)
 
 
 class Token:
@@ -185,7 +162,6 @@ def lexer( text: str ) -> List[Token]:
 
 def parser( tokens: List[Token] ) -> Node:
     weights = []
-    stack = Stack()
 
     depth = 0
     for token in tokens:
@@ -193,21 +169,19 @@ def parser( tokens: List[Token] ) -> Node:
             deepAppend(weights, token, depth)
 
         elif token.closing:
-            if stack.empty():
-                raise SyntaxError("Invalid tag placement.")
+            if depth == 0:
+                raise SyntaxError("Invalid tag closing.")
 
-            stack.pop()
             deepAppend(weights, token, depth)
             depth -= 1
 
         else:
-            stack.push(token)
             deepAppend(weights, [token], depth)
             depth += 1
 
 
-    if not stack.empty() or depth != 0:
-        raise SyntaxError("Invalid tag closing.")
+    if depth != 0:
+        raise SyntaxError("Tag not closed.")
     
     root = Node(weights)
 
