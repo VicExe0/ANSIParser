@@ -28,7 +28,8 @@ ANSI color parser based on html-like tags
     - Example: 
         <#ff0000><#ff0000>Hello, World!</#00ff00></#ff0000>
         Gradient inside will be overwritten by red color.
-        Try to avoid that because previous color wont be removed, instead another will be applied right after.
+        Try to avoid that because previous color wont be removed,
+        instead another will be applied right after.
 
 ### Tags as text:
     If you want to preserve specific tag, place \ right before it.
