@@ -5,7 +5,7 @@ def main() -> None:
     text2 = Parser.parse("<reverse><bold><#000000:bg><#ffffff>By VicExe0</#000000></#ffffff:bg></bold></reverse>")
 
     print(text1)
-    print(f"       {text2}")
+    print(f"        {text2}")
 
 
 if __name__ == "__main__":
