@@ -22,7 +22,8 @@ ANSI color parser based on html-like tags
     <#ff0000>...</#00ff00>  - Color the text inside based on the gradient from #ff0000 to #00ff00
 
 ### Priority:
-    Deeper nested color tags will be overwritten if they are inside another color tag and both are set to the same theme foreground/background color.
+    Deeper nested color tags will be overwritten if they are inside another color tag and
+    both are set to the same theme foreground/background color.
 
     - Example: 
         <#ff0000><#ff0000>Hello, World!</#00ff00></#ff0000>
