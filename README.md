@@ -30,10 +30,10 @@ ANSI color parser based on html-like tags
         Try to avoid that because previous color wont be removed, instead another will be applied right after.
 
 ### Tags as text:
-    If you want to preserve specific tag, place \ right before the tag.
+    If you want to preserve specific tag, place \ right before it.
     
     - Example:
         \<bold>Hello, World!\</bold> - wont register as a tag and \ will be removed
     
     - Output:
-        "\<bold>Hello, World!\</bold>"
+        <bold>Hello, World!</bold>
