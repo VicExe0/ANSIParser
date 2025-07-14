@@ -25,7 +25,7 @@ ANSI color parser based on html-like tags
     Deeper nested color tags will be overwritten if they are inside another color tag and
     both are set to the same theme foreground/background color.
 
-    #### Example: 
+    - Example: 
         <#ff0000><#ff0000>Hello, World!</#00ff00></#ff0000>
         Gradient inside will be overwritten by red color.
         Try to avoid that because previous color wont be removed,
@@ -35,5 +35,8 @@ ANSI color parser based on html-like tags
     If you want to preserve specific tag, place \ right before
     the tag.
     
-    #### Example:
-        \<bold>\</bold> - wont register as a tag and \ will be removed
+    - Example:
+        \<bold>Hello, World!\</bold> - wont register as a tag and \ will be removed
+    
+    - Output:
+        "\<bold>Hello, World!\</bold>"
