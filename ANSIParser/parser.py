@@ -1,22 +1,7 @@
-from typing import List, Tuple, Any, NoReturn, Optional
-from functools import lru_cache
-import re
+from typing import List, Tuple, Optional
 
-TAG_PATTERN = re.compile(r"(?<!\\)<\/?\#?[:\w]+>|\<|[^<]+", re.DOTALL)
-HEX_PATTERN = re.compile(r"^(?:\#[0-9a-fA-F]{6}(:bg)?)$")
-ANSI_REGEX = re.compile(r'\x1b\[[0-9;]*m')
-ANSI_RESET = "\x1b[0m"
-TAGS = {
-    "": "", # Container
-    "bold": "\x1b[1m",
-    "dim": "\x1b[2m",
-    "italic": "\x1b[3m",
-    "underline": "\x1b[4m",
-    "blink": "\x1b[5m",
-    "reverse": "\x1b[7m",
-    "hide": "\x1b[8m",
-    "strikethrough": "\x1b[9m"
-}
+from .utils import Token, Node, cleanTextLen, deepAppend, containsNode, extractTextContent, getHexColor, skipANSI, interpolateColors
+from .consts import TAG_PATTERN, THEME_BACKGROUND, THEME_FOREGROUND, TAGS, ANSI_RESET
 
 class Parser:
     @staticmethod
@@ -91,66 +76,24 @@ class Parser:
         """
         amount, _ = cleanTextLen(text)
         return amount
-
-
-class Token:
-    def __init__( self, value: str, type: str ):
-        self.value = value
-        self.type = type
-
-        if type == "text":
-            self.value = re.sub(r'\\<(\/?\w+)>', r'<\1>', value)
-
-        elif type == "tag":
-            self.closing = True if value[1] == "/" else False
-
-            prefix_len = 2 if self.closing else 1
-
-            self.value = value[prefix_len:-1]
-
-    def __repr__( self ) -> str:
-        return f"{self.type}({self.value})"
-    
-    def __str__( self ) -> str:
-        return str(self.value)
-
-
-class Node:
-    def __init__(self, tokens: List[Token] ) -> None: 
-        self.content = []
-
-        for token in tokens:
-            if isinstance(token, Token):
-                self.content.append(token)
-            
-            else:
-                self.content.append(Node(token))
-
-    def __len__( self ) -> int:
-        return len(self.content)
-
-    def __str__( self ) -> str:
-        res = list(map(str, self.content))
-
-        return str(res)
     
 
 def lexer( text: str ) -> List[Token]:
     tokens = [ Token("<>", "tag") ]
     prev = None
 
-    for m in TAG_PATTERN.finditer(text):
-        s = m.group()
-
-        if s.startswith("<") and s.endswith(">"):
-            token = Token(s, "tag")
+    for match in TAG_PATTERN.finditer(text):
+        content = match.group()
+        
+        if content.startswith("<") and content.endswith(">"):
+            token = Token(content, "tag")
 
         else:
             if prev and prev.type == "text":
-                prev.value += s
+                prev.value += content
                 continue
 
-            token = Token(s, "text")
+            token = Token(content, "text")
 
         tokens.append(token)
         prev = token
@@ -178,7 +121,6 @@ def parser( tokens: List[Token] ) -> Node:
         else:
             deepAppend(weights, [token], depth)
             depth += 1
-
 
     if depth != 0:
         raise SyntaxError("Tag not closed.")
@@ -215,111 +157,51 @@ def findDeepestNode(node: Node, depth: int = 0, parent: Optional[Node] = None, i
                 deepest_index = idx
 
     return max_depth, deepest, deepest_parent, deepest_index
-        
-
-def deepAppend( arr: List[Any], item: Any, depth: int ) -> NoReturn:
-    curr = arr
-
-    while depth > 0:
-        curr = curr[-1]
-        depth -= 1
     
-    curr.append(item)
-
-@lru_cache
-def hexToRGB( hex_color: str ) -> Tuple[int, int, int]:
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-@lru_cache
-def cleanTextLen( value: str ) -> Tuple[int, str]:
-    clean = ANSI_REGEX.sub('', value)
-
-    return len(clean), clean
-
-
-def containsNode( node: Node ) -> bool:
-    for item in node.content:
-        if isinstance(item, Node):
-            return True
-        
-        if isinstance(item, Token):
-            continue
-
-    return False
-
-@lru_cache
-def interpolateColors( start: List[int], end: List[int], length: int, step: int ) -> Tuple[int, int, int]:
-    ratio = step / (length - 1) if length > 1 else 0
-
-    r = round(start[0] + (end[0] - start[0]) * ratio)
-    g = round(start[1] + (end[1] - start[1]) * ratio)
-    b = round(start[2] + (end[2] - start[2]) * ratio)
-
-    return ( r, g, b )
 
 def evalNode( node: Node ) -> Token:
-    open_tag: str = node.content[0].value
+    open_tag = node.content[0].value
     close_tag = node.content[-1].value
-    hex_tag1 = bool(HEX_PATTERN.fullmatch(open_tag))
-    hex_tag2 = bool(HEX_PATTERN.fullmatch(close_tag))
+    text_content = extractTextContent(node)
 
-    text_values = [ node.content[i].value for i in range(1, len(node.content) - 1) ]
+    hex_open = getHexColor(open_tag)
+    hex_close = getHexColor(close_tag)
+    is_same_tag = open_tag == close_tag
+    is_valid_colors = hex_open is not None and hex_close is not None
+    theme = THEME_BACKGROUND if open_tag.endswith(":bg") and close_tag.endswith(":bg") else THEME_FOREGROUND
 
-    text_content = ''.join(text_values)
+    if not is_valid_colors:
+        if is_same_tag:
+            ansi = TAGS.get(open_tag)
 
-    theme = 48 if open_tag.endswith(":bg") and close_tag.endswith(":bg") else 38
-    same_color = bool(open_tag == close_tag)
+            if ansi is None:
+                raise SyntaxError(f"Unknown tag {open_tag}.")
+            
+            return Token(f"{ansi}{text_content}{ANSI_RESET}", "text")
 
-    if open_tag == close_tag and not (hex_tag1 and hex_tag2):
-        ansi = TAGS.get(open_tag, None)
-
-        if ansi is None:
-            raise SyntaxError(f"Unknown tag {open_tag}.")
-        
-        return Token(f"{ansi}{text_content}{ANSI_RESET}", "text")
-
-    if hex_tag1 is None or hex_tag2 is None:
         raise SyntaxError("Invalid hex colors.")
-    
-    start = hexToRGB(open_tag)
-    end = hexToRGB(close_tag)
 
-    length, _ = cleanTextLen(text_content)
-    total_length = len(text_content)
+    visible_len, _ = cleanTextLen(text_content)
+    total_len = len(text_content)
 
     result = ""
-
     index = 0
     step = 0
 
-    while index < total_length:
-        item = text_content[index]
+    while index < total_len:
+        char = text_content[index]
 
-        if item == '\x1b':
-            c_end = index + 1
-
-            while c_end < total_length and text_content[c_end] != 'm':
-                c_end += 1
-
-            c_end += 1
-
-            result += text_content[index:c_end]
-            index = c_end
+        if char == '\x1b':
+            ansi_color, index = skipANSI(text_content, index)
+            result += ansi_color
             continue
 
-        r, g, b = start if same_color else interpolateColors(start, end, length, step)
+        r, g, b = hex_open if is_same_tag else interpolateColors(hex_open, hex_close, visible_len, step)
+        result += f"\x1b[{theme};2;{r};{g};{b}m{char}"
 
-        result += f"\x1b[{theme};2;{r};{g};{b}m{item}"
-
-        step += 1
         index += 1
+        step += 1
 
     result += ANSI_RESET
 
     return Token(result, "text")
-
-
-
-        
-
